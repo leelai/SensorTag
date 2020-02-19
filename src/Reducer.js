@@ -1,6 +1,6 @@
 // @flow
 
-import {State, Device, BleError} from 'react-native-ble-plx';
+import { State, Device, BleError } from 'react-native-ble-plx';
 
 export type Action =
   | LogAction
@@ -12,11 +12,12 @@ export type Action =
   | SensorTagFoundAction
   | ForgetSensorTagAction
   | ExecuteTestAction
-  | TestFinishedAction;
+  | TestFinishedAction
+  | MyTestAction;
 
 export type LogAction = {|
   type: 'LOG',
-  message: string,
+    message: string,
 |};
 
 export type ClearLogsAction = {|
@@ -25,7 +26,7 @@ export type ClearLogsAction = {|
 
 export type ConnectAction = {|
   type: 'CONNECT',
-  device: Device,
+    device: Device,
 |};
 
 export type DisconnectAction = {|
@@ -34,17 +35,17 @@ export type DisconnectAction = {|
 
 export type UpdateConnectionStateAction = {|
   type: 'UPDATE_CONNECTION_STATE',
-  state: $Keys<typeof ConnectionState>,
+    state: $Keys < typeof ConnectionState >,
 |};
 
 export type BleStateUpdatedAction = {|
   type: 'BLE_STATE_UPDATED',
-  state: $Keys<typeof State>,
+    state: $Keys < typeof State >,
 |};
 
 export type SensorTagFoundAction = {|
   type: 'SENSOR_TAG_FOUND',
-  device: Device,
+    device: Device,
 |};
 
 export type ForgetSensorTagAction = {|
@@ -53,11 +54,16 @@ export type ForgetSensorTagAction = {|
 
 export type ExecuteTestAction = {|
   type: 'EXECUTE_TEST',
-  id: string,
+    id: string,
 |};
 
 export type TestFinishedAction = {|
   type: 'TEST_FINISHED',
+|};
+
+export type MyTestAction = {|
+  type: 'MY_TEST',
+    my_test_message: string,
 |};
 
 export type ReduxState = {
@@ -96,15 +102,15 @@ export function log(message: string): LogAction {
 export function logError(error: BleError) {
   return log(
     'ERROR: ' +
-      error.message +
-      ', ATT: ' +
-      (error.attErrorCode || 'null') +
-      ', iOS: ' +
-      (error.iosErrorCode || 'null') +
-      ', android: ' +
-      (error.androidErrorCode || 'null') +
-      ', reason: ' +
-      (error.reason || 'null'),
+    error.message +
+    ', ATT: ' +
+    (error.attErrorCode || 'null') +
+    ', iOS: ' +
+    (error.iosErrorCode || 'null') +
+    ', android: ' +
+    (error.androidErrorCode || 'null') +
+    ', reason: ' +
+    (error.reason || 'null'),
   );
 }
 
@@ -171,15 +177,22 @@ export function testFinished(): TestFinishedAction {
   };
 }
 
+export function myTestAction(msg: string): MyTestAction {
+  return {
+    type: 'MY_TEST',
+    my_test_message: msg
+  };
+}
+
 export function reducer(
   state: ReduxState = initialState,
   action: Action,
 ): ReduxState {
   switch (action.type) {
     case 'LOG':
-      return {...state, logs: [action.message, ...state.logs]};
+      return { ...state, logs: [action.message, ...state.logs] };
     case 'CLEAR_LOGS':
-      return {...state, logs: []};
+      return { ...state, logs: [] };
     case 'UPDATE_CONNECTION_STATE':
       return {
         ...state,
@@ -208,9 +221,12 @@ export function reducer(
       if (state.connectionState !== ConnectionState.CONNECTED) {
         return state;
       }
-      return {...state, currentTest: action.id};
+      return { ...state, currentTest: action.id };
     case 'TEST_FINISHED':
-      return {...state, currentTest: null};
+      return { ...state, currentTest: null };
+    case 'MY_TEST':
+      console.log("action my_test_message=" + action.my_test_message)
+      return { ...state, logs: [action.my_test_message, ...state.logs] };
     default:
       return state;
   }
