@@ -87,35 +87,36 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
         }
 
         yield put(log('====isReadable: ' + characteristic.isReadable));
-        if (characteristic.isReadable) {
-          yield put(log('Reading value...'));
-          var c = yield call([characteristic, characteristic.read]);
-          yield put(log('Got base64 value: ' + c.value));
-          if (characteristic.isWritableWithResponse) {
-            yield call(
-              [characteristic, characteristic.writeWithResponse],
-              c.value,
-            );
-            yield put(log('Successfully written value back'));
-          }
-        }
+        //below is working for ble peripheral tool on android
+        // if (characteristic.isReadable) {
+        //   yield put(log('Reading value...'));
+        //   var c = yield call([characteristic, characteristic.read]);
+        //   yield put(log('Got base64 value: ' + c.value));
+        //   if (characteristic.isWritableWithResponse) {
+        //     yield call(
+        //       [characteristic, characteristic.writeWithResponse],
+        //       c.value,
+        //     );
+        //     yield put(log('Successfully written value back'));
+        //   }
+        // }
 
-        //test only
         yield put(log('====isWritableWithoutResponse: ' + characteristic.isWritableWithoutResponse));
-        if (characteristic.isWritableWithoutResponse) {
-          yield put(log('Write(WithoutResponse) value...'));
-          var data = "MTIzNA==" //1234 base64
-          yield call(
-            //writeWithoutResponse(valueBase64: Base64, transactionId?: string): Promise<Characteristic>
-            [characteristic, characteristic.writeWithoutResponse],
-            data,
-          );
-          yield put(log('Successfully written value back'));
-        }
+        //below is working for ble peripheral tool on android
+        // if (characteristic.isWritableWithoutResponse) {
+        //   yield put(log('Write(WithoutResponse) value...'));
+        //   var data = "MTIzNA==" //1234 base64
+        //   yield call(
+        //     //writeWithoutResponse(valueBase64: Base64, transactionId?: string): Promise<Characteristic>
+        //     [characteristic, characteristic.writeWithoutResponse],
+        //     data,
+        //   );
+        //   yield put(log('Successfully written value back'));
+        // }
 
         yield put(log('====isNotifiable: ' + characteristic.isNotifiable));
         if (characteristic.isNotifiable) {
-          console.log('Notifiable uuid:' + characteristic.uuid)
+          // console.log('Notifiable uuid:' + characteristic.uuid)
           //todo:
           // var s: Subscription = yield call(
           //   // monitor(

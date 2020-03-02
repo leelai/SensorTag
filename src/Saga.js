@@ -34,6 +34,11 @@ import {
 } from 'react-native-ble-plx';
 import { SensorTagTests } from './Tests';
 
+const Packet = require('./Packet.js')
+//const gattServiceUUID = "ACB7D831-73DE-48B1-B1F2-E91E05DDFF95"
+//const a = "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"
+//const services = ["ACB7D831-73DE-48B1-B1F2-E91E05DDFF95", "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"]
+
 export function* bleSaga(): Generator<*, *, *> {
   yield put(log('BLE saga started...'));
 
@@ -123,6 +128,20 @@ function* handleScanning(manager: BleManager): Generator<*, *, *> {
   }
 }
 
+decodeBase64 = function (s) {
+  var e = {}, i, b = 0, c, x, l = 0, a, r = '', buf = [], w = String.fromCharCode, L = s.length;
+  var A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  for (i = 0; i < 64; i++) { e[A.charAt(i)] = i; }
+  for (x = 0; x < L; x++) {
+    c = e[s.charAt(x)]; b = (b << 6) + c; l += 6;
+    while (l >= 8) {
+      ((a = (b >>> (l -= 8)) & 0xff) || (x < (L - 2))) && (r += w(a));
+      buf.push(a)
+    }
+  }
+  return buf;
+};
+
 // As long as this generator is working we have enabled scanning functionality.
 // When we detect SensorTag device we make it as an active device.
 function* scan(manager: BleManager): Generator<*, *, *> {
@@ -156,14 +175,16 @@ function* scan(manager: BleManager): Generator<*, *, *> {
           emit([error, scannedDevice]);
           return;
         }
-        if (scannedDevice != null && scannedDevice.localName === 'test1234') {
-          console.log('found device, emit!')
-          console.log('  localName=' + scannedDevice.localName)
-          console.log('  id=' + scannedDevice.id)
-          console.log('  rssi=' + scannedDevice.rssi)
-          console.log('  mtu=' + scannedDevice.mtu)
-          console.log('  manufacturerData=' + scannedDevice.manufacturerData)
-          console.log('  serviceData=' + scannedDevice.serviceData)
+        if (scannedDevice != null && scannedDevice.manufacturerData != null) {
+          var answer = decodeBase64(scannedDevice.manufacturerData)
+          if (answer.length < 3 || answer[0] != 237 || answer[1] != 2) {
+            //it is not htc device
+            return
+          }
+          var packet = new Packet(answer.slice(2))
+          var serial = packet.getSmallString()
+          scannedDevice.serial = serial
+          console.log('serial:' + serial + ', rssi:' + scannedDevice.rssi)
           emit([error, scannedDevice]);
         }
       },
@@ -175,6 +196,7 @@ function* scan(manager: BleManager): Generator<*, *, *> {
 
   try {
     for (; ;) {
+      //持續掃瞄
       const [error, scannedDevice]: [?BleError,?Device] = yield take(
         scanningChannel,
       );
@@ -220,10 +242,15 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
     ]);
 
     try {
+      //顯示connecting
       yield put(updateConnectionState(ConnectionState.CONNECTING));
+      //調用connect
       yield call([device, device.connect]);
+      //顯示discovering
       yield put(updateConnectionState(ConnectionState.DISCOVERING));
+      //調用discoverAllServicesAndCharacteristics
       yield call([device, device.discoverAllServicesAndCharacteristics]);
+
       yield put(updateConnectionState(ConnectionState.CONNECTED));
 
       for (; ;) {

@@ -25,6 +25,8 @@ import {
 import { Device } from 'react-native-ble-plx';
 import { SensorTagTests, type SensorTagTestMetadata } from './Tests';
 
+const GattPhoneService = require('./GattPhoneService.js')
+
 const Button = function (props) {
   const { onPress, title, ...restProps } = props;
   return (
@@ -72,11 +74,11 @@ class SensorTag extends Component<Props, State> {
       case ConnectionState.DISCOVERING:
         return 'Discovering...';
       case ConnectionState.CONNECTED:
-        return 'Connected';
+        return 'Connected, SN:' + this.props.sensorTag.serial;
       case ConnectionState.DISCONNECTED:
       case ConnectionState.DISCONNECTING:
         if (this.props.sensorTag) {
-          return 'Found ' + this.props.sensorTag.id;
+          return 'Found, SN:' + this.props.sensorTag.serial;
         }
     }
 
@@ -104,8 +106,8 @@ class SensorTag extends Component<Props, State> {
   renderHeader() {
     return (
       <View style={{ padding: 10 }}>
-        <Text style={styles.textStyle} numberOfLines={1}>
-          SensorTag: {this.sensorTagStatus()}
+        <Text style={styles.textStyle} numberOfLines={2}>
+          AIO {this.sensorTagStatus()}
         </Text>
         <View style={{ flexDirection: 'row', paddingTop: 5 }}>
           <Button
@@ -293,6 +295,7 @@ export default reduxConnect(
   (state: ReduxState): $Shape<Props> => ({
     logs: state.logs,
     sensorTag: state.activeSensorTag,
+    devices: state.devices,
     connectionState: state.connectionState,
     currentTest: state.currentTest,
   }),

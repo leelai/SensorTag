@@ -70,6 +70,7 @@ export type ReduxState = {
   logs: Array<string>,
   activeError: ?BleError,
   activeSensorTag: ?Device,
+  devices: {},
   connectionState: $Keys<typeof ConnectionState>,
   currentTest: ?string,
   bleState: $Keys<typeof State>,
@@ -87,6 +88,7 @@ export const initialState: ReduxState = {
   bleState: State.Unknown,
   activeError: null,
   activeSensorTag: null,
+  devices: {},
   connectionState: ConnectionState.DISCONNECTED,
   currentTest: null,
   logs: [],
@@ -206,11 +208,15 @@ export function reducer(
         logs: ['BLE state changed: ' + action.state, ...state.logs],
       };
     case 'SENSOR_TAG_FOUND':
-      if (state.activeSensorTag) return state;
+      //原本sample只有一個activeSensorTag, 假使一搜尋到就只能連一個裝置
+      //if (state.activeSensorTag) return state;
+      //我們把它放到dictionary存放： serial vs device
+      state.devices[action.device.serial] = action.device;
       return {
         ...state,
         activeSensorTag: action.device,
-        logs: ['SensorTag found: ' + action.device.id, ...state.logs],
+        logs: ['aio found: sn=' + action.device.serial + ', total=' + Object.keys(state.devices).length, ...state.logs],
+        // logs: ['SensorTag found: ' + action.device.id, ...state.logs],
       };
     case 'FORGET_SENSOR_TAG':
       return {
