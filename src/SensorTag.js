@@ -1,7 +1,7 @@
 // @flow
 
-import React, { Component } from 'react';
-import { connect as reduxConnect } from 'react-redux';
+import React, {Component} from 'react';
+import {connect as reduxConnect} from 'react-redux';
 import {
   StyleSheet,
   Text,
@@ -22,13 +22,13 @@ import {
   ConnectionState,
   myTestAction,
 } from './Reducer';
-import { Device } from 'react-native-ble-plx';
-import { SensorTagTests, type SensorTagTestMetadata } from './Tests';
+import {Device} from 'react-native-ble-plx';
+import {SensorTagTests, type SensorTagTestMetadata} from './Tests';
 
-const GattPhoneService = require('./GattPhoneService.js')
+const GattPhoneService = require('./GattPhoneService.js');
 
-const Button = function (props) {
-  const { onPress, title, ...restProps } = props;
+const Button = function(props) {
+  const {onPress, title, ...restProps} = props;
   return (
     <TouchableOpacity onPress={onPress} {...restProps}>
       <Text
@@ -105,14 +105,14 @@ class SensorTag extends Component<Props, State> {
 
   renderHeader() {
     return (
-      <View style={{ padding: 10 }}>
+      <View style={{padding: 10}}>
         <Text style={styles.textStyle} numberOfLines={2}>
           AIO {this.sensorTagStatus()}
         </Text>
-        <View style={{ flexDirection: 'row', paddingTop: 5 }}>
+        <View style={{flexDirection: 'row', paddingTop: 5}}>
           <Button
             disabled={!this.isSensorTagReadyToConnect()}
-            style={{ flex: 1 }}
+            style={{flex: 1}}
             onPress={() => {
               if (this.props.sensorTag != null) {
                 this.props.connect(this.props.sensorTag);
@@ -120,28 +120,28 @@ class SensorTag extends Component<Props, State> {
             }}
             title={'Connect'}
           />
-          <View style={{ width: 5 }} />
+          <View style={{width: 5}} />
           <Button
             disabled={!this.isSensorTagReadyToDisconnect()}
-            style={{ flex: 1 }}
+            style={{flex: 1}}
             onPress={() => {
               this.props.disconnect();
             }}
             title={'Disconnect'}
           />
         </View>
-        <View style={{ flexDirection: 'row', paddingTop: 5 }}>
+        <View style={{flexDirection: 'row', paddingTop: 5}}>
           <Button
             disabled={!this.isSensorTagReadyToExecuteTests()}
-            style={{ flex: 1 }}
+            style={{flex: 1}}
             onPress={() => {
-              this.setState({ showModal: true });
+              this.setState({showModal: true});
             }}
             title={'Execute test'}
           />
-          <View style={{ width: 5 }} />
+          <View style={{width: 5}} />
           <Button
-            style={{ flex: 1 }}
+            style={{flex: 1}}
             disabled={this.props.sensorTag == null}
             onPress={() => {
               this.props.forgetSensorTag();
@@ -155,24 +155,24 @@ class SensorTag extends Component<Props, State> {
 
   renderLogs() {
     return (
-      <View style={{ flex: 1, padding: 10, paddingTop: 0 }}>
+      <View style={{flex: 1, padding: 10, paddingTop: 0}}>
         <FlatList
-          style={{ flex: 1 }}
+          style={{flex: 1}}
           data={this.props.logs}
-          renderItem={({ item }) => (
+          renderItem={({item}) => (
             <Text style={styles.logTextStyle}> {item} </Text>
           )}
           keyExtractor={(item, index) => index.toString()}
         />
         <Button
-          style={{ paddingTop: 10 }}
+          style={{paddingTop: 10}}
           onPress={() => {
             this.props.clearLogs();
           }}
           title={'Clear logs'}
         />
         <Button
-          style={{ paddingTop: 10 }}
+          style={{paddingTop: 10}}
           onPress={() => {
             this.props.myTestAction(this.props.sensorTag.localName);
           }}
@@ -191,7 +191,7 @@ class SensorTag extends Component<Props, State> {
         animationType="fade"
         transparent={true}
         visible={this.state.showModal}
-        onRequestClose={() => { }}>
+        onRequestClose={() => {}}>
         <View
           style={{
             backgroundColor: '#00000060',
@@ -213,19 +213,19 @@ class SensorTag extends Component<Props, State> {
             <Text
               style={[
                 styles.textStyle,
-                { paddingBottom: 10, alignSelf: 'center' },
+                {paddingBottom: 10, alignSelf: 'center'},
               ]}>
               Select test to execute:
             </Text>
             <FlatList
               data={tests}
-              renderItem={({ item }) => (
+              renderItem={({item}) => (
                 <Button
-                  style={{ paddingBottom: 5 }}
+                  style={{paddingBottom: 5}}
                   disabled={!this.isSensorTagReadyToExecuteTests()}
                   onPress={() => {
                     this.props.executeTest(item.id);
-                    this.setState({ showModal: false });
+                    this.setState({showModal: false});
                   }}
                   title={item.title}
                 />
@@ -233,9 +233,9 @@ class SensorTag extends Component<Props, State> {
               keyExtractor={(item, index) => index.toString()}
             />
             <Button
-              style={{ paddingTop: 5 }}
+              style={{paddingTop: 5}}
               onPress={() => {
-                this.setState({ showModal: false });
+                this.setState({showModal: false});
               }}
               title={'Cancel'}
             />

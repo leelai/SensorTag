@@ -1,30 +1,33 @@
-const Command = require('./Command.js')
-const Packet = require('./Packet.js')
+const Command = require('./Command.js');
+const Packet = require('./Packet.js');
 
 class OOBEStateCommand extends Command {
+  /* Bluetooth device name */
 
-    /* Bluetooth device name */
-    deviceName;
+  constructor() {
+    super();
+  }
 
-    getDeviceName() {
-        return this.deviceName;
-    }
+  getDeviceName() {
+    return this.deviceName;
+  }
 
-    setDeviceName(deviceName) {
-        this.deviceName = deviceName;
-    }
+  setDeviceName(deviceName) {
+    this.deviceName = deviceName;
+  }
 
-    getCmdType() {
-        return Command.CommandTypes.CMD_OOBE_State;
-    }
+  getCmdType() {
+    return Command.CMD_OOBE_State;
+  }
 
-    writeToPacket(p) {
-        p.putSmallString(this.getDeviceName());
-    }
+  writeToPacket(p) {
+    console.log('OOBEStateCommand writeToPacket:' + this.getDeviceName());
+    p.putSmallString(this.getDeviceName());
+  }
 
-    // initFromPacket(p) {
-    //     setDeviceName(p.getSmallString());
-    // }
+  // initFromPacket(p) {
+  //     setDeviceName(p.getSmallString());
+  // }
 }
 
-module.exports = OOBEStateCommand
+module.exports = OOBEStateCommand;

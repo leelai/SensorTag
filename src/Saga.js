@@ -34,7 +34,7 @@ import {
 } from 'react-native-ble-plx';
 import { SensorTagTests } from './Tests';
 
-const Packet = require('./Packet.js')
+const Packet = require('./Packet.js');
 //const gattServiceUUID = "ACB7D831-73DE-48B1-B1F2-E91E05DDFF95"
 //const a = "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"
 //const services = ["ACB7D831-73DE-48B1-B1F2-E91E05DDFF95", "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"]
@@ -129,14 +129,28 @@ function* handleScanning(manager: BleManager): Generator<*, *, *> {
 }
 
 decodeBase64 = function (s) {
-  var e = {}, i, b = 0, c, x, l = 0, a, r = '', buf = [], w = String.fromCharCode, L = s.length;
-  var A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  for (i = 0; i < 64; i++) { e[A.charAt(i)] = i; }
+  var e = {},
+    i,
+    b = 0,
+    c,
+    x,
+    l = 0,
+    a,
+    r = '',
+    buf = [],
+    w = String.fromCharCode,
+    L = s.length;
+  var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  for (i = 0; i < 64; i++) {
+    e[A.charAt(i)] = i;
+  }
   for (x = 0; x < L; x++) {
-    c = e[s.charAt(x)]; b = (b << 6) + c; l += 6;
+    c = e[s.charAt(x)];
+    b = (b << 6) + c;
+    l += 6;
     while (l >= 8) {
-      ((a = (b >>> (l -= 8)) & 0xff) || (x < (L - 2))) && (r += w(a));
-      buf.push(a)
+      ((a = (b >>> (l -= 8)) & 0xff) || x < L - 2) && (r += w(a));
+      buf.push(a);
     }
   }
   return buf;
@@ -176,16 +190,24 @@ function* scan(manager: BleManager): Generator<*, *, *> {
           return;
         }
         if (scannedDevice != null && scannedDevice.manufacturerData != null) {
-          var answer = decodeBase64(scannedDevice.manufacturerData)
-          if (answer.length < 3 || answer[0] != 237 || answer[1] != 2) {
+          var manufacturerData = decodeBase64(scannedDevice.manufacturerData);
+          //first two byte is company id
+          if (manufacturerData.length < 3 || manufacturerData[0] != 237 || manufacturerData[1] != 2) {
             //it is not htc device
-            return
+            return;
           }
-          var packet = new Packet(answer.slice(2))
-          var serial = packet.getSmallString()
-          scannedDevice.serial = serial
-          console.log('serial:' + serial + ', rssi:' + scannedDevice.rssi)
+
+          //這邊用packet有點無聊噎
+          var packet = new Packet(manufacturerData.slice(2));
+          var serial = packet.getSmallString();
+          scannedDevice.serial = serial;
+          console.log('serial:' + serial + ', rssi:' + scannedDevice.rssi);
           emit([error, scannedDevice]);
+        } else {
+          //testing
+          if (scannedDevice.localName == 'abc') {
+            emit([error, scannedDevice]);
+          }
         }
       },
     );
