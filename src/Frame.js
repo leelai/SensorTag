@@ -63,6 +63,24 @@ class Frame {
     p.putInt(p.generateChecksum());
     return p.toPacket();
   }
+
+  /**
+   * Parse frame packet
+   * @param data
+   * @return
+   */
+  static fromPacket(data) {
+    let p = new Packet(data);
+    if (p.verifyChecksum()) {
+      let f = new Frame();
+      f.seq = p.getInt();
+      f.count = p.getInt();
+      f.idx = p.getInt();
+      f.data = p.getMediumByteArray();
+      return f;
+    }
+    return null;
+  }
 }
 
 module.exports = Frame;

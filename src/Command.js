@@ -17,13 +17,74 @@ const CMD_OOBE_State = 0x01,
   CMD_Submit_Issue = 0x0b,
   CMD_App_List = 0x0c,
   CMD_Feedback_Setting = 0x0d,
-  CMD_Device_Info = 0x0e;
+  CMD_Device_Info = 0x0e,
+  CMD_Developer_Options = 0x0f;
 
 class Command {
   VERSION = 1;
 
   static get CMD_OOBE_State() {
     return CMD_OOBE_State;
+  }
+
+  static get CMD_Wifi_Settings() {
+    return CMD_Wifi_Settings;
+  }
+
+  static get CMD_Wifi_Scan() {
+    return CMD_Wifi_Scan;
+  }
+
+  static get CMD_TimeZone() {
+    return CMD_TimeZone;
+  }
+
+  static get CMD_Language_List() {
+    return CMD_Language_List;
+  }
+
+  static get CMD_Language() {
+    return CMD_Language;
+  }
+
+  static get CMD_OOBE_Done() {
+    return CMD_OOBE_Done;
+  }
+
+  static get CMD_AutoTimeZone() {
+    return CMD_AutoTimeZone;
+  }
+
+  static get CMD_NonType() {
+    return CMD_NonType;
+  }
+
+  static get CMD_File_Transfer() {
+    return CMD_File_Transfer;
+  }
+
+  static get CMD_Submit_Issue() {
+    return CMD_Submit_Issue;
+  }
+
+  static get CMD_App_List() {
+    return CMD_App_List;
+  }
+
+  static get CMD_Feedback_Setting() {
+    return CMD_Feedback_Setting;
+  }
+
+  static get CMD_File_Transfer() {
+    return CMD_File_Transfer;
+  }
+
+  static get CMD_Device_Info() {
+    return CMD_Device_Info;
+  }
+
+  static get CMD_Developer_Options() {
+    return CMD_Developer_Options;
   }
 
   prev_seq = 0;
@@ -33,14 +94,10 @@ class Command {
     this.initSeq();
   }
 
-  currentTimeMillis() {
-    return Date.now(); // Unix timestamp in milliseconds
-  }
-
   initSeq() {
     //todo:
     // synchronized(prev_seq) {
-    this.seq = this.currentTimeMillis();
+    this.seq = Date.now();
     console.log('Command initSeq seq=' + this.seq);
     if (this.seq <= this.prev_seq) {
       this.seq = this.prev_seq + 1;
@@ -88,70 +145,6 @@ class Command {
     console.log(p);
     return p.toPacket();
   }
-
-  //todo:
-  /**
-   * Parse command data
-   * @param cmdType
-   * @param cmdData
-   * @return
-   */
-  // public static Command fromCmdData(byte cmdType, byte[] cmdData) {
-  //     Command cmd = null;
-  //     Log.d(TAG, "fromCmdData cmdType=" + cmdType);
-
-  //     switch (cmdType) {
-  //         case CommandTypes.CMD_OOBE_State:
-  //             cmd = new OOBEStateCommand();
-  //             break;
-  //         case CommandTypes.CMD_Wifi_Settings:
-  //             cmd = new WifiSettingsCommand();
-  //             break;
-  //         case CommandTypes.CMD_Wifi_Scan:
-  //             cmd = new WifiScanCommand();
-  //             break;
-  //         case CommandTypes.CMD_Language_List:
-  //             cmd = new LanguageListCommand();
-  //             break;
-  //         case CommandTypes.CMD_Language:
-  //             cmd = new LanguageCommand();
-  //             break;
-  //         case CommandTypes.CMD_TimeZone:
-  //             cmd = new TimeZoneCommand();
-  //             break;
-  //         case CommandTypes.CMD_AutoTimeZone:
-  //             cmd = new AutoTimeZoneCommand();
-  //             break;
-  //         case CommandTypes.CMD_File_Transfer:
-  //             cmd = new FileTransferCommand();
-  //             break;
-  //         case CommandTypes.CMD_Submit_Issue:
-  //             cmd = new SubmitIssueCommand();
-  //             break;
-  //         case CommandTypes.CMD_App_List:
-  //             cmd = new AppListCommand();
-  //             break;
-  //         case CommandTypes.CMD_Feedback_Setting:
-  //             cmd = new FeedbackSettingCommand();
-  //             break;
-  //         case CommandTypes.CMD_Device_Info:
-  //             cmd = new DeviceInfoCommand();
-  //             break;
-
-  //         default:
-  //             Log.e(TAG, "fromCmdData fail: unknown cmdType=" + cmdType);
-  //             return null;
-  //     }
-
-  //     try {
-  //         Packet p = new Packet(cmdData);
-  //         cmd.initFromPacket(p);
-  //         return cmd;
-  //     } catch (Exception e) {
-  //         Log.e(TAG, "initFromPacket fail:" + e.toString());
-  //         return null;
-  //     }
-  // }
 }
 
 module.exports = Command;

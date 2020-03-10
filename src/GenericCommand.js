@@ -10,6 +10,7 @@ class GenericCommand extends Command {
   }
 
   getCmdType() {
+    console.log('GenericCommand getCmdType');
     return this.cmdType;
   }
 
@@ -33,7 +34,7 @@ class GenericCommand extends Command {
   }
 
   initFromPacket(p) {
-    setCmdData(p.getLargeByteArray());
+    this.setCmdData(p.getLargeByteArray());
   }
 
   /**
@@ -43,7 +44,9 @@ class GenericCommand extends Command {
   toPacket() {
     let p = new Packet();
     p.putByte(this.getVersion());
+    console.log('getVersion:' + this.getVersion());
     p.putShort(this.getCmdType());
+    console.log('getCmdType:' + this.getCmdType());
     p.putInt(this.getSeq());
     this.writeToPacket(p);
     p.putInt(p.generateChecksum());

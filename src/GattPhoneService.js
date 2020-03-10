@@ -166,15 +166,3 @@ class GattPhoneService {
 }
 
 module.exports = GattPhoneService;
-
-//========my test code===============
-// var gattPhoneService = new GattPhoneService()
-// var x = new Uint8Array([21, 31, 21, 31, 21, 0]);
-
-//queryOOBEState
-// var cmd = new OOBEStateCommand();
-// cmd.setDeviceName('11111')
-// gattPhoneService.sendCommand(cmd.getCmdType(), cmd.getCmdData())
-
-//var x = new Uint8Array([1, 2, 3, 4]);
-//gattPhoneService.sendCommand(1, x)

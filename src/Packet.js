@@ -8,11 +8,11 @@
  */
 
 const CRC32 = require('crc-32');
+const Buffer = require('safe-buffer').Buffer;
 
 class Packet {
   //multiple constructor
   constructor(buf) {
-    console.log('Packet constructor arguments.length' + arguments.length);
     if (!arguments.length) {
       this.buf = new Uint8Array(128);
     } else {
@@ -43,6 +43,40 @@ class Packet {
     let b = this.buf[idx];
     this.idx += 1;
     return b;
+  }
+
+  getInt() {
+    let b3 = this.getByte();
+    let b2 = this.getByte();
+    let b1 = this.getByte();
+    let b0 = this.getByte();
+
+    return (b3 << 24) | ((b2 & 0xff) << 16) | ((b1 & 0xff) << 8) | (b0 & 0xff);
+  }
+
+  getShort() {
+    let b1 = this.getByte();
+    let b0 = this.getByte();
+    console.log('b0:' + b0);
+    console.log('b1:' + b1);
+    return (b1 << 8) | (b0 & 0xff);
+  }
+
+  /**
+   * Unpacking byte array using two bytes to store array length
+   * @return
+   */
+  getMediumByteArray() {
+    let len = this.getShort();
+
+    if (len > 0) {
+      let data = new Uint8Array(len);
+      data.set(this.buf.slice(this.idx, this.idx + len));
+      this.idx += len;
+      return data;
+    } else {
+      return [];
+    }
   }
 
   _putIntToBuf(int) {
@@ -130,7 +164,7 @@ class Packet {
         return c.charCodeAt(0);
       });
       let len = Math.min(strBytes.length, 255);
-      console.log('len =' + len)
+      console.log('len =' + len);
       this._ensureSize(this.idx + 1 + len);
       this.putByte(len);
       this.buf.set(strBytes.slice(0, len), this.idx);
@@ -164,6 +198,48 @@ class Packet {
     return CRC32.buf(this.buf.slice(0, this.idx));
   }
 
+  convert(Uint8Arr) {
+    var length = Uint8Arr.length;
+    let buffer = Buffer.from(Uint8Arr);
+    var result = buffer.readInt32BE(0, length);
+    return result;
+  }
+
+  /**
+   * Verify checksum for unpacking
+   * @return
+   */
+  verifyChecksum() {
+    if (this.buf == null || this.buf.length <= 6) {
+      return false;
+    }
+    console.log('verifyChecksum:' + JSON.stringify(this.buf));
+    let checksum_1 = CRC32.buf(this.buf.slice(0, this.buf.length - 4));
+    console.log('checksum_1:' + checksum_1);
+    console.log('crc32:' + this.buf.slice(this.buf.length - 4));
+    let checksum_2 = this.convert(this.buf.slice(this.buf.length - 4));
+    console.log('checksum_2:' + checksum_2);
+
+    return checksum_1 == checksum_2;
+  }
+
+  /**
+   * Unpacking byte array using four bytes to store array length
+   * @return
+   */
+  getLargeByteArray() {
+    let len = this.getInt();
+    if (len > 0) {
+      let data = new Uint8Array(len);
+      data.set(this.buf.slice(this.idx, this.idx + len));
+      // System.arraycopy(buf, idx, data, 0, len);
+      this.idx += len;
+      return data;
+    } else {
+      return new Uint8Array(0);
+    }
+  }
+
   /**
    * Generate packet data
    * @return
@@ -171,44 +247,10 @@ class Packet {
   toPacket() {
     let data = new Uint8Array(this.idx);
     data.set(this.buf.slice(0, this.idx));
-    console.log('Packet toPacket()=' + data);
+    // console.log(JSON.stringify(data));
+    // console.log('Packet toPacket()=' + data);
     return data;
   }
 }
 
 module.exports = Packet;
-
-// var byteArrayToLong = function (/*byte[]*/byteArray) {
-//     var value = 0;
-//     for (var i = byteArray.length - 1; i >= 0; i--) {
-//         value = (value * 256) + byteArray[i];
-//     }
-
-//     return value;
-// };
-
-// var longToByteArray = function (/*long*/long) {
-//     // we want to represent the input as a 8-bytes array
-//     var byteArray = [0, 0, 0, 0, 0, 0, 0, 0];
-
-//     for (var index = 0; index < byteArray.length; index++) {
-//         var byte = long & 0xff;
-//         byteArray[index] = byte;
-//         long = (long - byte) / 256;
-//     }
-
-//     return byteArray;
-// };
-
-// var UInt32ToByteArray = function (int) {
-//     // we want to represent the input as a 8-bytes array
-//     var byteArray = new Uint8Array(4);
-
-//     for (var index = 0; index < byteArray.length; index++) {
-//         var byte = int & 0xff;
-//         byteArray[index] = byte;
-//         int = (int - byte) / 256;
-//     }
-
-//     return byteArray;
-// };

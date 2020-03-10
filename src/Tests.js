@@ -15,6 +15,7 @@ import { log, logError } from './Reducer';
 
 const GattPhoneService = require('./GattPhoneService.js');
 const OOBEStateCommand = require('./OOBEStateCommand.js');
+const FrameFactory = require('./FrameFactory.js');
 
 export type SensorTagTestMetadata = {
   id: string,
@@ -82,7 +83,7 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
           const d: Descriptor = yield call([descriptor, descriptor.read]);
           yield put(log('Descriptor value: ' + (d.value || 'null')));
           if (d.uuid === '00002902-0000-1000-8000-00805f9b34fb') {
-            yield put(log('Skipping CCC'));
+            // yield put(log('Skipping CCC'));
             continue;
           }
           try {
@@ -112,7 +113,12 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
         //   }
         // }
 
-        yield put(log('====isWritableWithoutResponse: ' + characteristic.isWritableWithoutResponse));
+        yield put(
+          log(
+            '====isWritableWithoutResponse: ' +
+            characteristic.isWritableWithoutResponse,
+          ),
+        );
         //below is working for ble peripheral tool on android
         if (characteristic.isWritableWithoutResponse) {
           // yield put(log('Write(WithoutResponse) value...'));
@@ -125,8 +131,12 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
           // yield put(log('Successfully written value back'));
         }
 
-
-        yield put(log('====isWritableWithResponse: ' + characteristic.isWritableWithResponse));
+        yield put(
+          log(
+            '====isWritableWithResponse: ' +
+            characteristic.isWritableWithResponse,
+          ),
+        );
         //below is working for ble peripheral tool on android
         if (characteristic.isWritableWithResponse) {
           // yield put(log('Write(WritableWithResponse) value...'));
@@ -208,32 +218,54 @@ function* notifyTest(device: Device): Generator<*, boolean, *> {
   // ): Subscription
 
   //==================it is for ble  peripheral tool
-  // const notificationChannel = yield eventChannel(emit => {
-  //   const subscription = device.monitorCharacteristicForService(
-  //     '0000fff0-0000-1000-8000-00805f9b34fb',
-  //     '0000fff1-0000-1000-8000-00805f9b34fb',
-  //     (error: BleError | null, characteristic: Characteristic | null) => {
-  //       //console.log(characteristic)
-  //       emit(characteristic.value);
-  //     },
-  //     null,
-  //   );
-  //   return () => {
-  //     subscription.remove();
-  //   };
-  // }, buffers.expanding(1));
+  const notificationChannel = yield eventChannel(emit => {
+    const subscription = device.monitorCharacteristicForService(
+      // peripheral test tool
+      // '0000fff0-0000-1000-8000-00805f9b34fb',
+      // '0000fff1-0000-1000-8000-00805f9b34fb',
+      '2C3001E9-6833-45B5-BC5E-235DCDFAB2BD',
+      '7A391A16-5358-437A-93A8-A15AD28A59DA',
+      //heart rate
+      // '0000180D-0000-1000-8000-00805f9b34fb',
+      // '00002A37-0000-1000-8000-00805f9b34fb',
+      (error: BleError | null, characteristic: Characteristic | null) => {
+        if (error) {
+          console.log(error);
+          emit('quit:' + error);
+        }
+        if (characteristic) {
+          console.log(characteristic.value);
+          // let data = decodeBase64(characteristic.value)
+          // let data = 'c3RhY2thYnVzZS5jb20=';
+          let buff = new Buffer(characteristic.value, 'base64');
+          let text = buff.toString('ascii');
 
-  // try {
-  //   for (;;) {
-  //     const value = yield take(notificationChannel);
-  //     console.log('eventChannel:' + value);
-  //     yield put(log(value));
-  //   }
-  // } finally {
-  //   if (yield cancelled()) {
-  //     notificationChannel.close();
-  //   }
-  // }
+          console.log(text);
+          emit(text);
+        }
+      },
+      null,
+    );
+    return () => {
+      subscription.remove();
+    };
+  }, buffers.expanding(1));
+
+  try {
+    for (; ;) {
+      const value = yield take(notificationChannel);
+      console.log('eventChannel:' + value);
+      if (value.startsWith('quit')) {
+        yield put(log(value));
+        break;
+      }
+      yield put(log(value));
+    }
+  } finally {
+    if (yield cancelled()) {
+      notificationChannel.close();
+    }
+  }
   //==========================================
 
   // device.monitorCharacteristicForService(
@@ -245,7 +277,89 @@ function* notifyTest(device: Device): Generator<*, boolean, *> {
   return true;
 }
 
+decodeBase64 = function (s) {
+  var e = {},
+    i,
+    b = 0,
+    c,
+    x,
+    l = 0,
+    a,
+    r = '',
+    buf = [],
+    w = String.fromCharCode,
+    L = s.length;
+  var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  for (i = 0; i < 64; i++) {
+    e[A.charAt(i)] = i;
+  }
+  for (x = 0; x < L; x++) {
+    c = e[s.charAt(x)];
+    b = (b << 6) + c;
+    l += 6;
+    while (l >= 8) {
+      ((a = (b >>> (l -= 8)) & 0xff) || x < L - 2) && (r += w(a));
+      buf.push(a);
+    }
+  }
+  return buf;
+};
+
 const Buffer = require('safe-buffer').Buffer;
+const FramePool = require('./FramePool.js');
+const GenericResponse = require('./GenericResponse.js');
+const Response = require('./Response.js');
+
+let mResponseFramePoolMap = {};
+
+function processResponseFrame(responseFrame) {
+  console.log('processResponseFrame:' + JSON.stringify(responseFrame));
+  let framePool = null;
+
+  let seq = responseFrame.seq;
+  if (mResponseFramePoolMap[seq] != null) {
+    framePool = mResponseFramePoolMap[seq];
+  } else {
+    console.log('create ResponseFramePool seq:' + seq);
+    framePool = new FramePool(seq, responseFrame.count);
+    mResponseFramePoolMap[seq] = framePool;
+  }
+
+  if (framePool != null) {
+    framePool.addFrame(responseFrame);
+    if (framePool.isFull()) {
+      let respPacket = framePool.merge();
+      console.log('respPacket seq:' + seq + ' len:' + respPacket.length);
+      console.log(respPacket)
+      let genericResponse = GenericResponse.fromPacket(respPacket);
+      console.log(
+        'receive genericResponse cmdType=' +
+        genericResponse.cmdType +
+        ' seq=' +
+        genericResponse.seq,
+      );
+
+      let cmdType = genericResponse.cmdType;
+      let respData = genericResponse.respData;
+      console.log('genericResponse:' + genericResponse);
+      //let mCallback = findCallback(cmdType);
+
+      // if (mCallback != null) {
+      //   mCallback.onReceiveResponse(cmdType, toSharedMemory(respData));
+      // }
+      let response = Response.fromResponseData(cmdType, respData);
+      //console.log('response:' + JSON.stringify(response));
+      //console.log('response str:' + response.toString());
+      // remove framePool
+      //console.log('remove ResponseFramePool seq:' + seq);
+      //yield put(log(response.toString()));
+      delete mResponseFramePoolMap[seq];
+      return response
+    } else {
+      console.log('not full!');
+    }
+  }
+}
 
 function* oobeStatus(device: Device): Generator<*, boolean, *> {
   yield put(log('Get oobe status...'));
@@ -276,110 +390,102 @@ function* oobeStatus(device: Device): Generator<*, boolean, *> {
         service.characteristics,
       ]);
       for (const characteristic of characteristics) {
-        yield put(log('characteristic uuid=' + characteristic.uuid));
+        //yield put(log('characteristic uuid=' + characteristic.uuid));
         if (
-          service.uuid.toUpperCase() === RECEIVE_SERVICE &&
-          characteristic.uuid.toUpperCase() === REC_1
+          characteristic.uuid.toUpperCase() === REC_1 &&
+          characteristic.isWritableWithResponse
         ) {
           wCh = characteristic;
-        } else if (characteristic.uuid.toUpperCase() === SND_1) {
+        } else if (
+          characteristic.uuid.toUpperCase() === SND_1 &&
+          characteristic.isNotifiable
+        ) {
           nCh = characteristic;
         }
 
         //testing
-        if (wCh == null && characteristic.uuid.toUpperCase() === HEART_RATE_CONTROL_POINT_UUID) {
-          wCh = characteristic;
+        // if (wCh == null && characteristic.uuid.toUpperCase() === HEART_RATE_CONTROL_POINT_UUID) {
+        //   wCh = characteristic;
+        // }
+      }
+    }
+
+    if (wCh && nCh) {
+      yield put(log('wCh=' + wCh.uuid));
+      yield put(log('nCh=' + nCh.uuid));
+
+      const notificationChannel = yield eventChannel(emit => {
+        const subscription = nCh.monitor(
+          (error: BleError | null, characteristic: Characteristic | null) => {
+            console.log('emit!!');
+            if (error) {
+              console.log(error);
+            }
+            if (characteristic) {
+              console.log(characteristic);
+              emit(characteristic.value);
+            }
+          },
+        );
+        return () => {
+          subscription.remove();
+        };
+      }, buffers.expanding(1));
+
+      //send oobe command
+      let cmd = new OOBEStateCommand();
+      cmd.setDeviceName('11111');
+      let len = cmd.getDeviceName().length;
+      let gattPhoneService = new GattPhoneService(device);
+      let cmdSeq = gattPhoneService.prepareCommandPkt(
+        cmd.getCmdType(),
+        cmd.getCmdData(),
+      );
+      while (true) {
+        let data = gattPhoneService.getNextFrame();
+        if (data == null) {
+          console.log('no more data, break');
+          break;
+        }
+        console.log('send data:' + data);
+        const dataInBase64 = Buffer.from(data).toString('base64');
+        // yield put(log('send data:' + data));
+        console.log('send data(Base64):' + dataInBase64);
+
+        const characteristic: Characteristic = yield call(
+          [wCh, wCh.writeWithResponse],
+          dataInBase64,
+        );
+
+        yield put(log('Successfully written value back' + characteristic.uuid));
+      }
+
+      //wait for response
+      try {
+        for (; ;) {
+          const value = yield take(notificationChannel);
+          console.log('eventChannel:' + value);
+          var decodeFromValue = decodeBase64(value);
+          console.log(decodeFromValue);
+          // let buff = new Buffer(value, 'base64');
+          // let text = buff.toString('ascii');
+          yield put(log(decodeFromValue));
+          let responseFrame = FrameFactory.fromPacket(decodeFromValue);
+          let rsp = processResponseFrame(responseFrame);
+          if (rsp) {
+            yield put(log(rsp.toString()));
+            return true;
+          }
+        }
+      } finally {
+        if (yield cancelled()) {
+          notificationChannel.close();
         }
       }
-    }
-
-    if (wCh) {
-      yield put(log('wCh=' + wCh.uuid));
-    }
-    if (nCh) {
-      yield put(log('nCh=' + nCh.uuid));
-    }
-
-    let cmd = new OOBEStateCommand();
-    cmd.setDeviceName('njwgqctfdtviqqgupyczmmpjxrketbmxyihjtnjbkicqjbapajayaaihifewqiigbvveubunrypxxauvdbzbetnqvmquadprmetxxuwgwjhtqeuqnwfnudfudhwepkckbqyqgazbnbbwfzyfktgmfdjvhixtxhfprgzvkbjuvnekeduwutyznwfzmqahhfwqjdrecxmzvpngqwkmbhbegzteyqnwjzymeetdgmypemiudxnwjyckjhzmwz1234567890');
-    let len = cmd.getDeviceName().length
-    console.log('len=' + len);
-    // console.log(cmd.getCmdType());
-    // console.log('getCmdData is' + cmd.getCmdData());
-    // cmd.setDeviceName('james');
-    // console.log(
-    //   'OOBEStateCommand getCmdType:' +
-    //   cmd.getCmdType() +
-    //   ', getCmdData:' +
-    //   cmd.getCmdData(),
-    // );
-    let gattPhoneService = new GattPhoneService(device);
-    let cmdSeq = gattPhoneService.prepareCommandPkt(
-      cmd.getCmdType(),
-      cmd.getCmdData(),
-    );
-    // console.log('===========');
-    console.log('===========');
-    // return true;
-    // let oobeStatusCommand = gattPhoneService.sendCommand(
-    //   cmd.getCmdType,
-    //   cmd.getCmdData,
-    // );
-    while (true) {
-      let data = gattPhoneService.getNextFrame();
-      if (data == null) {
-        console.log('no more data, break');
-        break;
-      }
-      console.log('send data:' + data);
-      const dataInBase64 = Buffer.from(data).toString('base64');
-      // yield put(log('send data:' + data));
-      console.log('send data(Base64):' + dataInBase64);
-
-      const characteristic: Characteristic = yield call([wCh, wCh.writeWithResponse], dataInBase64);
-
-      yield put(log('Successfully written value back' + characteristic.uuid));
     }
   } catch (error) {
     yield put(logError(error));
     return false;
   }
-
-  // let cmd = new OOBEStateCommand();
-  // let gattPhoneService = new GattPhoneService(device);
-  // let oobeStatusCommand = gattPhoneService.sendCommand(
-  //   cmd.getCmdType,
-  //   cmd.getCmdData,
-  // );
-
-  //==================it is for ble  peripheral tool
-  // const notificationChannel = yield eventChannel(emit => {
-  // const subscription = device.monitorCharacteristicForService(
-  //     '0000fff0-0000-1000-8000-00805f9b34fb',
-  //     '0000fff1-0000-1000-8000-00805f9b34fb',
-  //     (error: BleError | null, characteristic: Characteristic | null) => {
-  //       //console.log(characteristic)
-  //       emit(characteristic.value);
-  //     },
-  //     null,
-  //   );
-  //   return () => {
-  //     subscription.remove();
-  //   };
-  // }, buffers.expanding(1));
-
-  // try {
-  //   for (;;) {
-  //     const value = yield take(notificationChannel);
-  //     console.log('eventChannel:' + value);
-  //     yield put(log(value));
-  //   }
-  // } finally {
-  //   if (yield cancelled()) {
-  //     notificationChannel.close();
-  //   }
-  // }
-  //==========================================
-
   return true;
 }

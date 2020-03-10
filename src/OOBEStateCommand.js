@@ -17,6 +17,7 @@ class OOBEStateCommand extends Command {
   }
 
   getCmdType() {
+    console.log('OOBEStateCommand getCmdType():' + Command.CMD_OOBE_State);
     return Command.CMD_OOBE_State;
   }
 
