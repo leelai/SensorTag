@@ -105,7 +105,7 @@ class Packet {
     let len = this.getByte();
     if (len > 0) {
       let strBytes = new Uint8Array(len);
-      let data = this.buf.slice(this.idx, len + 1);
+      let data = this.buf.slice(this.idx, this.idx + len);
       if (data == null) {
         return '';
       }
