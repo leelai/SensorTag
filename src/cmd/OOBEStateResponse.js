@@ -1,6 +1,6 @@
 const Command = require('./Command.js');
 const Packet = require('./Packet.js');
-const Response = require('./Response.js');
+const Response = require('../Response.js');
 
 const WIFI_STATE_DISABLING = 0x0,
     WIFI_STATE_DISABLED = 0x01,

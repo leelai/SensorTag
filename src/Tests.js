@@ -14,8 +14,8 @@ import {
 import { log, logError } from './Reducer';
 
 const GattPhoneService = require('./GattPhoneService.js');
-const OOBEStateCommand = require('./OOBEStateCommand.js');
-const FrameFactory = require('./FrameFactory.js');
+const OOBEStateCommand = require('./cmd/OOBEStateCommand.js');
+const FrameFactory = require('./cmd/FrameFactory.js');
 
 export type SensorTagTestMetadata = {
   id: string,
@@ -28,11 +28,6 @@ export const SensorTagTests: { [string]: SensorTagTestMetadata } = {
     id: 'READ_ALL_CHARACTERISTICS',
     title: 'Read all characteristics',
     execute: readAllCharacteristics,
-  },
-  READ_TEMPERATURE: {
-    id: 'READ_TEMPERATURE',
-    title: 'Read temperature',
-    execute: readTemperature,
   },
   WRITE_TEST: {
     id: 'WRITE_TEST',
@@ -49,6 +44,11 @@ export const SensorTagTests: { [string]: SensorTagTestMetadata } = {
     title: 'OOBE Status',
     execute: oobeStatus,
   },
+  SCAN_WIFI: {
+    id: 'SCAN_WIFI',
+    title: 'Scan wifi',
+    execute: scanWifi,
+  }
 };
 
 function listener(
@@ -198,9 +198,11 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
   return true;
 }
 
-function* readTemperature(device: Device): Generator<*, boolean, *> {
-  yield put(log('Read temperature'));
-  return false;
+function* scanWifi(device: Device): Generator<*, boolean, *> {
+  yield put(log('Scan Wifi'));
+  yield put(log('wCh=' + device.wCh.uuid));
+  yield put(log('nCh=' + device.nCh.uuid));
+  return true;
 }
 
 function* writeTest(device: Device): Generator<*, boolean, *> {
@@ -306,8 +308,8 @@ decodeBase64 = function (s) {
 };
 
 const Buffer = require('safe-buffer').Buffer;
-const FramePool = require('./FramePool.js');
-const GenericResponse = require('./GenericResponse.js');
+const FramePool = require('./cmd/FramePool.js');
+const GenericResponse = require('./cmd/GenericResponse.js');
 const Response = require('./Response.js');
 
 let mResponseFramePoolMap = {};
@@ -364,12 +366,17 @@ function processResponseFrame(responseFrame) {
 function* oobeStatus(device: Device): Generator<*, boolean, *> {
   yield put(log('Get oobe status...'));
   yield put(log('original mtu = ' + device.mtu));
+  yield put(log('wCh=' + device.wCh.uuid));
+  yield put(log('nCh=' + device.nCh.uuid));
 
   //Check mtu
   if (device.mtu < 160) {
-    device = yield call([device, device.requestMTU], 160);
+    yield call([device, device.requestMTU], 160);
     yield put(log('new mtu = ' + device.mtu));
   }
+
+  yield put(log('wCh=' + device.wCh.uuid));
+  yield put(log('nCh=' + device.nCh.uuid));
 
   //Find service
   try {
@@ -380,42 +387,43 @@ function* oobeStatus(device: Device): Generator<*, boolean, *> {
     let HEART_RATE_CONTROL_POINT_UUID = '00002A39-0000-1000-8000-00805F9B34FB';
 
     //todo: store it in store
-    let wCh = null;
-    let nCh = null;
+    // let wCh = null;
+    // let nCh = null;
 
-    const services: Array<Service> = yield call([device, device.services]);
-    for (const service of services) {
-      const characteristics: Array<Characteristic> = yield call([
-        service,
-        service.characteristics,
-      ]);
-      for (const characteristic of characteristics) {
-        //yield put(log('characteristic uuid=' + characteristic.uuid));
-        if (
-          characteristic.uuid.toUpperCase() === REC_1 &&
-          characteristic.isWritableWithResponse
-        ) {
-          wCh = characteristic;
-        } else if (
-          characteristic.uuid.toUpperCase() === SND_1 &&
-          characteristic.isNotifiable
-        ) {
-          nCh = characteristic;
-        }
+    // const services: Array<Service> = yield call([device, device.services]);
+    // for (const service of services) {
+    //   const characteristics: Array<Characteristic> = yield call([
+    //     service,
+    //     service.characteristics,
+    //   ]);
+    //   for (const characteristic of characteristics) {
+    //     //yield put(log('characteristic uuid=' + characteristic.uuid));
+    //     if (
+    //       characteristic.uuid.toUpperCase() === REC_1 &&
+    //       characteristic.isWritableWithResponse
+    //     ) {
+    //       wCh = characteristic;
+    //     } else if (
+    //       characteristic.uuid.toUpperCase() === SND_1 &&
+    //       characteristic.isNotifiable
+    //     ) {
+    //       nCh = characteristic;
+    //     }
 
-        //testing
-        // if (wCh == null && characteristic.uuid.toUpperCase() === HEART_RATE_CONTROL_POINT_UUID) {
-        //   wCh = characteristic;
-        // }
-      }
-    }
-
-    if (wCh && nCh) {
-      yield put(log('wCh=' + wCh.uuid));
-      yield put(log('nCh=' + nCh.uuid));
+    //     //testing
+    //     // if (wCh == null && characteristic.uuid.toUpperCase() === HEART_RATE_CONTROL_POINT_UUID) {
+    //     //   wCh = characteristic;
+    //     // }
+    //   }
+    // }
+    //console.log(device)
+    // console.log(device)
+    if (device.wCh && device.nCh) {
+      yield put(log('wCh=' + device.wCh.uuid));
+      yield put(log('nCh=' + device.nCh.uuid));
 
       const notificationChannel = yield eventChannel(emit => {
-        const subscription = nCh.monitor(
+        const subscription = device.nCh.monitor(
           (error: BleError | null, characteristic: Characteristic | null) => {
             console.log('emit!!');
             if (error) {
@@ -437,10 +445,7 @@ function* oobeStatus(device: Device): Generator<*, boolean, *> {
       cmd.setDeviceName('11111');
       let len = cmd.getDeviceName().length;
       let gattPhoneService = new GattPhoneService(device);
-      let cmdSeq = gattPhoneService.prepareCommandPkt(
-        cmd.getCmdType(),
-        cmd.getCmdData(),
-      );
+      let seq = gattPhoneService.prepareFrame(cmd.getCmdType(), cmd.getCmdData());
       while (true) {
         let data = gattPhoneService.getNextFrame();
         if (data == null) {
@@ -453,7 +458,7 @@ function* oobeStatus(device: Device): Generator<*, boolean, *> {
         console.log('send data(Base64):' + dataInBase64);
 
         const characteristic: Characteristic = yield call(
-          [wCh, wCh.writeWithResponse],
+          [device.wCh, device.wCh.writeWithResponse],
           dataInBase64,
         );
 
@@ -482,6 +487,7 @@ function* oobeStatus(device: Device): Generator<*, boolean, *> {
           notificationChannel.close();
         }
       }
+      return true
     }
   } catch (error) {
     yield put(logError(error));

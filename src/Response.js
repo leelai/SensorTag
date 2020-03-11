@@ -1,5 +1,5 @@
-const Packet = require('./Packet.js');
-const Command = require('./Command.js');
+const Packet = require('./cmd/Packet.js');
+const Command = require('./cmd/Command.js');
 
 class Response {
   static VERSION = 0x1;
@@ -103,7 +103,7 @@ class Response {
     let p = new Packet(responseData);
     switch (cmdType) {
       case Command.CMD_OOBE_State:
-        const OOBEStateResponse = require('./OOBEStateResponse.js');
+        const OOBEStateResponse = require('./cmd/OOBEStateResponse.js');
         resp = new OOBEStateResponse();
         break;
       case Command.CMD_Wifi_Settings:

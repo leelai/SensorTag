@@ -1,4 +1,4 @@
-const Response = require('./Response.js');
+const Response = require('../Response.js');
 const Packet = require('./Packet.js');
 
 class GenericResponse extends Response {

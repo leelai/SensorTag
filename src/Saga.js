@@ -34,7 +34,7 @@ import {
 } from 'react-native-ble-plx';
 import { SensorTagTests } from './Tests';
 
-const Packet = require('./Packet.js');
+const Packet = require('./cmd/Packet.js');
 //const gattServiceUUID = "ACB7D831-73DE-48B1-B1F2-E91E05DDFF95"
 //const a = "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"
 //const services = ["ACB7D831-73DE-48B1-B1F2-E91E05DDFF95", "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"]
@@ -237,6 +237,9 @@ function* scan(manager: BleManager): Generator<*, *, *> {
   }
 }
 
+let REC_1 = '908CA7F2-1BD9-45BC-AD01-01F453D405F8';
+let SND_1 = '7A391A16-5358-437A-93A8-A15AD28A59DA';
+
 //流程控制
 function* handleConnection(manager: BleManager): Generator<*, *, *> {
   var testTask = null;
@@ -267,13 +270,52 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
       //顯示connecting
       yield put(updateConnectionState(ConnectionState.CONNECTING));
       //調用connect
-      yield call([device, device.connect]);
+      let connectedDevice = yield call([manager, manager.connectToDevice], device.id, { requestMTU: 160 });//160 not work
+      // yield call([device, device.connect], { requestMTU: 160 });
+
+      yield put(log('connectedDevice.mtu=' + connectedDevice.mtu));
       //顯示discovering
       yield put(updateConnectionState(ConnectionState.DISCOVERING));
-      //調用discoverAllServicesAndCharacteristics
+      //一定要先調用discoverAllServicesAndCharacteristics
       yield call([device, device.discoverAllServicesAndCharacteristics]);
 
-      yield put(updateConnectionState(ConnectionState.CONNECTED));
+      //test
+      const services: Array<Service> = yield call([device, device.services]);
+      for (const service of services) {
+        const characteristics: Array<Characteristic> = yield call([
+          service,
+          service.characteristics,
+        ]);
+        for (const characteristic of characteristics) {
+          //yield put(log('characteristic uuid=' + characteristic.uuid));
+          if (
+            characteristic.uuid.toUpperCase() === REC_1 &&
+            characteristic.isWritableWithResponse
+          ) {
+            device.wCh = characteristic;
+          } else if (
+            characteristic.uuid.toUpperCase() === SND_1 &&
+            characteristic.isNotifiable
+          ) {
+            device.nCh = characteristic;
+          }
+
+          if (device.wCh && device.nCh) {
+            //console.log(device)
+            yield put(log('wCh=' + device.wCh.uuid));
+            yield put(log('nCh=' + device.nCh.uuid));
+            break
+          }
+        }
+      }
+
+      //條件是要找到wch or nch才算連上
+      if (!device.wCh || !device.nCh) {
+        yield put(updateConnectionState(ConnectionState.DISCONNECTING));
+        yield call([device, device.cancelConnection]);
+      } else {
+        yield put(updateConnectionState(ConnectionState.CONNECTED));
+      }
 
       for (; ;) {
         const { deviceAction, disconnected } = yield race({
@@ -292,6 +334,9 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
             if (testTask != null) {
               yield cancel(testTask);
             }
+            //test
+            yield put(log('wCh=' + device.wCh.uuid));
+            yield put(log('nCh=' + device.nCh.uuid));
             testTask = yield fork(executeTest, device, deviceAction);
           }
         } else if (disconnected) {
@@ -318,6 +363,8 @@ function* executeTest(
 ): Generator<*, *, *> {
   yield put(log('Executing test: ' + test.id));
   const start = Date.now();
+  // console.log(SensorTagTests)
+  // console.log(SensorTagTests[test.id])
   const result = yield call(SensorTagTests[test.id].execute, device);
   if (result) {
     yield put(
