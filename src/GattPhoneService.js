@@ -15,10 +15,15 @@ import {
 class GattPhoneService {
   #frameFactory
   #device
+  #mtu
 
-  constructor(device: Device /*, wCh: Characteristic, nCh: Characteristic*/) {
-    this.#device = device;
+  constructor(mtu /*, wCh: Characteristic, nCh: Characteristic*/) {
+    this.#mtu = mtu;
   }
+
+  // constructor(device: Device /*, wCh: Characteristic, nCh: Characteristic*/) {
+  //   this.#device = device;
+  // }
 
   mSendCommandMap = {};
 
@@ -29,7 +34,7 @@ class GattPhoneService {
     // console.log('cmd:' + JSON.stringify(cmd));
     let cmdPkt = cmd.toPacket();
     // console.log(cmdPkt);
-    this.#frameFactory = new FrameFactory(cmd.seq, this.#device.mtu, cmdPkt);
+    this.#frameFactory = new FrameFactory(cmd.seq, this.#mtu, cmdPkt);
     return cmd.seq;
   }
 

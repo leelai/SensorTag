@@ -211,13 +211,23 @@ export function reducer(
       //原本sample只有一個activeSensorTag, 假使一搜尋到就只能連一個裝置
       //if (state.activeSensorTag) return state;
       //我們把它放到dictionary存放： serial vs device
-      state.devices[action.device.serial] = action.device;
-      return {
-        ...state,
-        activeSensorTag: action.device,
-        logs: ['aio found: sn=' + action.device.serial + ', total=' + Object.keys(state.devices).length, ...state.logs],
-        // logs: ['SensorTag found: ' + action.device.id, ...state.logs],
-      };
+      if (state.devices[action.device.serial]) {
+        state.devices[action.device.serial] = action.device;
+        return {
+          ...state,
+          activeSensorTag: action.device
+        };
+      } else {
+        //new device:
+        state.devices[action.device.serial] = action.device;
+        return {
+          ...state,
+          activeSensorTag: action.device,
+          logs: ['new aio found: sn=' + action.device.serial + ', total devices=' + Object.keys(state.devices).length, ...state.logs],
+          // logs: ['SensorTag found: ' + action.device.id, ...state.logs],
+        };
+      }
+
     case 'FORGET_SENSOR_TAG':
       return {
         ...state,

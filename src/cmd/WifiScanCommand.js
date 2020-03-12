@@ -3,7 +3,7 @@ const Packet = require('./Packet.js');
 
 class WifiScanCommand extends Command {
     /* Bluetooth device name */
-    #dummyData;
+    #dummyData = 0
 
     constructor() {
         super();
@@ -22,4 +22,4 @@ class WifiScanCommand extends Command {
     }
 }
 
-module.exports = OOBEStateCommand;
+module.exports = WifiScanCommand;

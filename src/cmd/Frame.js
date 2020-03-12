@@ -78,6 +78,8 @@ class Frame {
       f.idx = p.getInt();
       f.data = p.getMediumByteArray();
       return f;
+    } else {
+      console.log('checksum fail:' + data)
     }
     return null;
   }

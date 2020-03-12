@@ -35,9 +35,11 @@ import {
 import { SensorTagTests } from './Tests';
 
 const Packet = require('./cmd/Packet.js');
-//const gattServiceUUID = "ACB7D831-73DE-48B1-B1F2-E91E05DDFF95"
-//const a = "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"
-//const services = ["ACB7D831-73DE-48B1-B1F2-E91E05DDFF95", "2C3001E9-6833-45B5-BC5E-235DCDFAB2BD"]
+const FrameFactory = require('./cmd/FrameFactory.js');
+const FramePool = require('./cmd/FramePool.js');
+const GenericResponse = require('./cmd/GenericResponse.js');
+const Response = require('./Response.js');
+const Buffer = require('safe-buffer').Buffer;
 
 export function* bleSaga(): Generator<*, *, *> {
   yield put(log('BLE saga started...'));
@@ -128,33 +130,56 @@ function* handleScanning(manager: BleManager): Generator<*, *, *> {
   }
 }
 
-decodeBase64 = function (s) {
-  var e = {},
-    i,
-    b = 0,
-    c,
-    x,
-    l = 0,
-    a,
-    r = '',
-    buf = [],
-    w = String.fromCharCode,
-    L = s.length;
-  var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  for (i = 0; i < 64; i++) {
-    e[A.charAt(i)] = i;
+let mResponseFramePoolMap = {};
+
+function processResponseFrame(responseFrame) {
+  console.log('processResponseFrame:' + JSON.stringify(responseFrame));
+  let framePool = null;
+
+  let seq = responseFrame.seq;
+  if (mResponseFramePoolMap[seq] != null) {
+    framePool = mResponseFramePoolMap[seq];
+  } else {
+    console.log('create ResponseFramePool seq:' + seq);
+    framePool = new FramePool(seq, responseFrame.count);
+    mResponseFramePoolMap[seq] = framePool;
   }
-  for (x = 0; x < L; x++) {
-    c = e[s.charAt(x)];
-    b = (b << 6) + c;
-    l += 6;
-    while (l >= 8) {
-      ((a = (b >>> (l -= 8)) & 0xff) || x < L - 2) && (r += w(a));
-      buf.push(a);
+
+  if (framePool != null) {
+    framePool.addFrame(responseFrame);
+    if (framePool.isFull()) {
+      let respPacket = framePool.merge();
+      console.log('respPacket seq:' + seq + ' len:' + respPacket.length);
+      console.log(respPacket)
+      let genericResponse = GenericResponse.fromPacket(respPacket);
+      console.log(
+        'receive genericResponse cmdType=' +
+        genericResponse.cmdType +
+        ' seq=' +
+        genericResponse.seq,
+      );
+
+      let cmdType = genericResponse.cmdType;
+      let respData = genericResponse.respData;
+      console.log('genericResponse:' + genericResponse);
+      //let mCallback = findCallback(cmdType);
+
+      // if (mCallback != null) {
+      //   mCallback.onReceiveResponse(cmdType, toSharedMemory(respData));
+      // }
+      let response = Response.fromResponseData(cmdType, respData);
+      //console.log('response:' + JSON.stringify(response));
+      //console.log('response str:' + response.toString());
+      // remove framePool
+      //console.log('remove ResponseFramePool seq:' + seq);
+      //yield put(log(response.toString()));
+      delete mResponseFramePoolMap[seq];
+      return response
+    } else {
+      console.log('not full!');
     }
   }
-  return buf;
-};
+}
 
 // As long as this generator is working we have enabled scanning functionality.
 // When we detect SensorTag device we make it as an active device.
@@ -261,25 +286,38 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
       };
     }, buffers.expanding(1));
 
+    //從UI觸發的Action
     const deviceActionChannel = yield actionChannel([
       'DISCONNECT',
       'EXECUTE_TEST',
+      'PACKET_REV'
     ]);
 
     try {
       //顯示connecting
       yield put(updateConnectionState(ConnectionState.CONNECTING));
       //調用connect
-      let connectedDevice = yield call([manager, manager.connectToDevice], device.id, { requestMTU: 160 });//160 not work
-      // yield call([device, device.connect], { requestMTU: 160 });
+      // let connectedDevice = yield call([manager, manager.connectToDevice], device.id, { requestMTU: 160 });//160 not work
+      // connectedDevice = yield call([manager, manager.requestMTUForDevice], connectedDevice.id, 160); mtu not working
+      // connectedDevice = yield call([connectedDevice, connectedDevice.requestMTU], 160);
+      // yield put(log('new mtu = ' + connectedDevice.mtu));
+      device = yield call([device, device.connect]);
+      yield put(log('original mtu = ' + device.mtu));
+      // device = yield call([device, device.requestMTU], 160);
+      if (device.mtu < 160) {
+        device = yield call([device, device.requestMTU], 160);
+        yield put(log('new mtu = ' + device.mtu));
+        //主要目的要更新一下mtu資訊?
+        //yield put(sensorTagFound(device));
+      }
 
-      yield put(log('connectedDevice.mtu=' + connectedDevice.mtu));
+      // yield put(log('connectedDevice.mtu=' + connectedDevice.mtu));
       //顯示discovering
       yield put(updateConnectionState(ConnectionState.DISCOVERING));
       //一定要先調用discoverAllServicesAndCharacteristics
       yield call([device, device.discoverAllServicesAndCharacteristics]);
 
-      //test
+      //Find wch and nch
       const services: Array<Service> = yield call([device, device.services]);
       for (const service of services) {
         const characteristics: Array<Characteristic> = yield call([
@@ -301,7 +339,6 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
           }
 
           if (device.wCh && device.nCh) {
-            //console.log(device)
             yield put(log('wCh=' + device.wCh.uuid));
             yield put(log('nCh=' + device.nCh.uuid));
             break
@@ -317,10 +354,30 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
         yield put(updateConnectionState(ConnectionState.CONNECTED));
       }
 
+      //建立接收channel
+      const notificationChannel = yield eventChannel(emit => {
+        const subscription = device.nCh.monitor(
+          (error: BleError | null, characteristic: Characteristic | null) => {
+            if (error) {
+              console.log(error);
+            }
+            if (characteristic) {
+              //console.log(characteristic);
+              emit(characteristic.value);
+            }
+          },
+        );
+        return () => {
+          subscription.remove();
+        };
+      }, buffers.expanding(1));
+
       for (; ;) {
-        const { deviceAction, disconnected } = yield race({
+        yield put(log('wait for event...'));
+        const { deviceAction, disconnected, notification } = yield race({
           deviceAction: take(deviceActionChannel),
           disconnected: take(disconnectedChannel),
+          notification: take(notificationChannel)
         });
 
         if (deviceAction) {
@@ -334,9 +391,6 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
             if (testTask != null) {
               yield cancel(testTask);
             }
-            //test
-            yield put(log('wCh=' + device.wCh.uuid));
-            yield put(log('nCh=' + device.nCh.uuid));
             testTask = yield fork(executeTest, device, deviceAction);
           }
         } else if (disconnected) {
@@ -345,6 +399,21 @@ function* handleConnection(manager: BleManager): Generator<*, *, *> {
             yield put(logError(disconnected.error));
           }
           break;
+        } else if (notification) {
+          let buff = new Buffer(notification, 'base64');
+          //const decodeFromValue = decodeBase64(notification);
+          console.log('decodeFromValue:' + buff);
+          yield put(log(buff));
+          let responseFrame = FrameFactory.fromPacket(buff);
+          if (responseFrame) {
+            let rsp = processResponseFrame(responseFrame);
+            if (rsp) {
+              yield put(log(rsp.toString()));
+            }
+          } else {
+            console.log('checksum err')
+            yield put(log('checksum err'));
+          }
         }
       }
     } catch (error) {

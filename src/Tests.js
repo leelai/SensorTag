@@ -15,7 +15,8 @@ import { log, logError } from './Reducer';
 
 const GattPhoneService = require('./GattPhoneService.js');
 const OOBEStateCommand = require('./cmd/OOBEStateCommand.js');
-const FrameFactory = require('./cmd/FrameFactory.js');
+const WifiScanCommand = require('./cmd/WifiScanCommand.js');
+// const FrameFactory = require('./cmd/FrameFactory.js');
 
 export type SensorTagTestMetadata = {
   id: string,
@@ -168,7 +169,7 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
           //   yield put(log('Successfully written value back'));
           // }
 
-          yield put(log('Successfully written value back'));
+          // yield put(log('Successfully written value back'));
         }
 
         yield put(log('====isNotifiable: ' + characteristic.isNotifiable));
@@ -200,8 +201,29 @@ function* readAllCharacteristics(device: Device): Generator<*, boolean, *> {
 
 function* scanWifi(device: Device): Generator<*, boolean, *> {
   yield put(log('Scan Wifi'));
-  yield put(log('wCh=' + device.wCh.uuid));
-  yield put(log('nCh=' + device.nCh.uuid));
+
+  let cmd = new WifiScanCommand();
+  let gattPhoneService = new GattPhoneService(device.mtu);
+  gattPhoneService.prepareFrame(cmd.getCmdType(), cmd.getCmdData());
+  while (true) {
+    let data = gattPhoneService.getNextFrame();
+    if (data == null) {
+      console.log('no more data, break');
+      break;
+    }
+    //console.log('send data:' + data);
+    const dataInBase64 = Buffer.from(data).toString('base64');
+    // yield put(log('send data:' + data));
+    console.log('send data(Base64):' + dataInBase64);
+
+    const characteristic: Characteristic = yield call(
+      [device.wCh, device.wCh.writeWithResponse],
+      dataInBase64,
+    );
+
+    yield put(log('Successfully written value back' + characteristic.uuid));
+  }
+
   return true;
 }
 
@@ -308,187 +330,125 @@ decodeBase64 = function (s) {
 };
 
 const Buffer = require('safe-buffer').Buffer;
-const FramePool = require('./cmd/FramePool.js');
-const GenericResponse = require('./cmd/GenericResponse.js');
-const Response = require('./Response.js');
+// const FramePool = require('./cmd/FramePool.js');
+// const GenericResponse = require('./cmd/GenericResponse.js');
+// const Response = require('./Response.js');
 
-let mResponseFramePoolMap = {};
+// let mResponseFramePoolMap = {};
 
-function processResponseFrame(responseFrame) {
-  console.log('processResponseFrame:' + JSON.stringify(responseFrame));
-  let framePool = null;
+// function processResponseFrame(responseFrame) {
+//   console.log('processResponseFrame:' + JSON.stringify(responseFrame));
+//   let framePool = null;
 
-  let seq = responseFrame.seq;
-  if (mResponseFramePoolMap[seq] != null) {
-    framePool = mResponseFramePoolMap[seq];
-  } else {
-    console.log('create ResponseFramePool seq:' + seq);
-    framePool = new FramePool(seq, responseFrame.count);
-    mResponseFramePoolMap[seq] = framePool;
-  }
+//   let seq = responseFrame.seq;
+//   if (mResponseFramePoolMap[seq] != null) {
+//     framePool = mResponseFramePoolMap[seq];
+//   } else {
+//     console.log('create ResponseFramePool seq:' + seq);
+//     framePool = new FramePool(seq, responseFrame.count);
+//     mResponseFramePoolMap[seq] = framePool;
+//   }
 
-  if (framePool != null) {
-    framePool.addFrame(responseFrame);
-    if (framePool.isFull()) {
-      let respPacket = framePool.merge();
-      console.log('respPacket seq:' + seq + ' len:' + respPacket.length);
-      console.log(respPacket)
-      let genericResponse = GenericResponse.fromPacket(respPacket);
-      console.log(
-        'receive genericResponse cmdType=' +
-        genericResponse.cmdType +
-        ' seq=' +
-        genericResponse.seq,
-      );
+//   if (framePool != null) {
+//     framePool.addFrame(responseFrame);
+//     if (framePool.isFull()) {
+//       let respPacket = framePool.merge();
+//       console.log('respPacket seq:' + seq + ' len:' + respPacket.length);
+//       console.log(respPacket)
+//       let genericResponse = GenericResponse.fromPacket(respPacket);
+//       console.log(
+//         'receive genericResponse cmdType=' +
+//         genericResponse.cmdType +
+//         ' seq=' +
+//         genericResponse.seq,
+//       );
 
-      let cmdType = genericResponse.cmdType;
-      let respData = genericResponse.respData;
-      console.log('genericResponse:' + genericResponse);
-      //let mCallback = findCallback(cmdType);
+//       let cmdType = genericResponse.cmdType;
+//       let respData = genericResponse.respData;
+//       console.log('genericResponse:' + genericResponse);
+//       //let mCallback = findCallback(cmdType);
 
-      // if (mCallback != null) {
-      //   mCallback.onReceiveResponse(cmdType, toSharedMemory(respData));
-      // }
-      let response = Response.fromResponseData(cmdType, respData);
-      //console.log('response:' + JSON.stringify(response));
-      //console.log('response str:' + response.toString());
-      // remove framePool
-      //console.log('remove ResponseFramePool seq:' + seq);
-      //yield put(log(response.toString()));
-      delete mResponseFramePoolMap[seq];
-      return response
-    } else {
-      console.log('not full!');
-    }
-  }
-}
+//       // if (mCallback != null) {
+//       //   mCallback.onReceiveResponse(cmdType, toSharedMemory(respData));
+//       // }
+//       let response = Response.fromResponseData(cmdType, respData);
+//       //console.log('response:' + JSON.stringify(response));
+//       //console.log('response str:' + response.toString());
+//       // remove framePool
+//       //console.log('remove ResponseFramePool seq:' + seq);
+//       //yield put(log(response.toString()));
+//       delete mResponseFramePoolMap[seq];
+//       return response
+//     } else {
+//       console.log('not full!');
+//     }
+//   }
+// }
 
 function* oobeStatus(device: Device): Generator<*, boolean, *> {
   yield put(log('Get oobe status...'));
-  yield put(log('original mtu = ' + device.mtu));
-  yield put(log('wCh=' + device.wCh.uuid));
-  yield put(log('nCh=' + device.nCh.uuid));
-
-  //Check mtu
-  if (device.mtu < 160) {
-    yield call([device, device.requestMTU], 160);
-    yield put(log('new mtu = ' + device.mtu));
-  }
-
-  yield put(log('wCh=' + device.wCh.uuid));
-  yield put(log('nCh=' + device.nCh.uuid));
-
-  //Find service
   try {
-    yield put(log('Find service...'));
-    let RECEIVE_SERVICE = 'ACB7D831-73DE-48B1-B1F2-E91E05DDFF95';
-    let REC_1 = '908CA7F2-1BD9-45BC-AD01-01F453D405F8';
-    let SND_1 = '7A391A16-5358-437A-93A8-A15AD28A59DA';
-    let HEART_RATE_CONTROL_POINT_UUID = '00002A39-0000-1000-8000-00805F9B34FB';
+    // const notificationChannel = yield eventChannel(emit => {
+    //   const subscription = device.nCh.monitor(
+    //     (error: BleError | null, characteristic: Characteristic | null) => {
+    //       if (error) {
+    //         console.log(error);
+    //       }
+    //       if (characteristic) {
+    //         //console.log(characteristic);
+    //         emit(characteristic.value);
+    //       }
+    //     },
+    //   );
+    //   return () => {
+    //     subscription.remove();
+    //   };
+    // }, buffers.expanding(1));
 
-    //todo: store it in store
-    // let wCh = null;
-    // let nCh = null;
+    //send oobe command
+    let cmd = new OOBEStateCommand();
+    cmd.setDeviceName('James');
+    let gattPhoneService = new GattPhoneService(device.mtu);
+    gattPhoneService.prepareFrame(cmd.getCmdType(), cmd.getCmdData());
+    while (true) {
+      let data = gattPhoneService.getNextFrame();
+      if (data == null) {
+        console.log('no more data, break');
+        break;
+      }
+      //console.log('send data:' + data);
+      const dataInBase64 = Buffer.from(data).toString('base64');
+      // yield put(log('send data:' + data));
+      console.log('send data(Base64):' + dataInBase64);
 
-    // const services: Array<Service> = yield call([device, device.services]);
-    // for (const service of services) {
-    //   const characteristics: Array<Characteristic> = yield call([
-    //     service,
-    //     service.characteristics,
-    //   ]);
-    //   for (const characteristic of characteristics) {
-    //     //yield put(log('characteristic uuid=' + characteristic.uuid));
-    //     if (
-    //       characteristic.uuid.toUpperCase() === REC_1 &&
-    //       characteristic.isWritableWithResponse
-    //     ) {
-    //       wCh = characteristic;
-    //     } else if (
-    //       characteristic.uuid.toUpperCase() === SND_1 &&
-    //       characteristic.isNotifiable
-    //     ) {
-    //       nCh = characteristic;
+      const characteristic: Characteristic = yield call(
+        [device.wCh, device.wCh.writeWithResponse],
+        dataInBase64,
+      );
+
+      yield put(log('Successfully written value back' + characteristic.uuid));
+    }
+
+    // //wait for response
+    // try {
+    //   for (; ;) {
+    //     const value = yield take(notificationChannel);
+    //     //console.log('eventChannel:' + value);
+    //     var decodeFromValue = decodeBase64(value);
+    //     // console.log(decodeFromValue);
+    //     yield put(log(decodeFromValue));
+    //     let responseFrame = FrameFactory.fromPacket(decodeFromValue);
+    //     let rsp = processResponseFrame(responseFrame);
+    //     if (rsp) {
+    //       yield put(log(rsp.toString()));
+    //       return true;
     //     }
-
-    //     //testing
-    //     // if (wCh == null && characteristic.uuid.toUpperCase() === HEART_RATE_CONTROL_POINT_UUID) {
-    //     //   wCh = characteristic;
-    //     // }
+    //   }
+    // } finally {
+    //   if (yield cancelled()) {
+    //     notificationChannel.close();
     //   }
     // }
-    //console.log(device)
-    // console.log(device)
-    if (device.wCh && device.nCh) {
-      yield put(log('wCh=' + device.wCh.uuid));
-      yield put(log('nCh=' + device.nCh.uuid));
-
-      const notificationChannel = yield eventChannel(emit => {
-        const subscription = device.nCh.monitor(
-          (error: BleError | null, characteristic: Characteristic | null) => {
-            console.log('emit!!');
-            if (error) {
-              console.log(error);
-            }
-            if (characteristic) {
-              console.log(characteristic);
-              emit(characteristic.value);
-            }
-          },
-        );
-        return () => {
-          subscription.remove();
-        };
-      }, buffers.expanding(1));
-
-      //send oobe command
-      let cmd = new OOBEStateCommand();
-      cmd.setDeviceName('11111');
-      let len = cmd.getDeviceName().length;
-      let gattPhoneService = new GattPhoneService(device);
-      let seq = gattPhoneService.prepareFrame(cmd.getCmdType(), cmd.getCmdData());
-      while (true) {
-        let data = gattPhoneService.getNextFrame();
-        if (data == null) {
-          console.log('no more data, break');
-          break;
-        }
-        console.log('send data:' + data);
-        const dataInBase64 = Buffer.from(data).toString('base64');
-        // yield put(log('send data:' + data));
-        console.log('send data(Base64):' + dataInBase64);
-
-        const characteristic: Characteristic = yield call(
-          [device.wCh, device.wCh.writeWithResponse],
-          dataInBase64,
-        );
-
-        yield put(log('Successfully written value back' + characteristic.uuid));
-      }
-
-      //wait for response
-      try {
-        for (; ;) {
-          const value = yield take(notificationChannel);
-          console.log('eventChannel:' + value);
-          var decodeFromValue = decodeBase64(value);
-          console.log(decodeFromValue);
-          // let buff = new Buffer(value, 'base64');
-          // let text = buff.toString('ascii');
-          yield put(log(decodeFromValue));
-          let responseFrame = FrameFactory.fromPacket(decodeFromValue);
-          let rsp = processResponseFrame(responseFrame);
-          if (rsp) {
-            yield put(log(rsp.toString()));
-            return true;
-          }
-        }
-      } finally {
-        if (yield cancelled()) {
-          notificationChannel.close();
-        }
-      }
-      return true
-    }
   } catch (error) {
     yield put(logError(error));
     return false;

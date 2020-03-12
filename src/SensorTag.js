@@ -74,10 +74,13 @@ class SensorTag extends Component<Props, State> {
       case ConnectionState.CONNECTED:
         return 'Connected, SN:' + this.props.sensorTag.serial;
       case ConnectionState.DISCONNECTED:
-      case ConnectionState.DISCONNECTING:
         if (this.props.sensorTag) {
           return 'Found, SN:' + this.props.sensorTag.serial;
+        } else {
+          return 'Disconnected';
         }
+      case ConnectionState.DISCONNECTING:
+        return 'Disconnecting';
     }
 
     return 'Searching...';

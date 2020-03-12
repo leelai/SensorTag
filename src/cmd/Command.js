@@ -139,7 +139,6 @@ class Command {
    * @return
    */
   getCmdData() {
-    console.log('Command.getCmdData()');
     let p = new Packet();
     this.writeToPacket(p);
     console.log(p);
